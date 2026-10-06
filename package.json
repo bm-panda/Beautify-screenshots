@@ -1,0 +1,16 @@
+{
+  "name": "screenshot-beautifier",
+  "version": "1.4.1",
+  "private": true,
+  "description": "截图美化 - 给截图添加渐变背景、圆角和阴影",
+  "main": "main.js",
+  "engines": {
+    "node": ">=16.0"
+  },
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.2"
+  }
+}

@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>截图美化</title>
+<link rel="icon" href="imgs/logo.png" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Roboto, sans-serif;
+    font-size: 13px; color: #1a1a2e; background: #f2f3f5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { height: 100%; display: flex; flex-direction: column; padding: 10px 12px; gap: 8px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .topbar h1 { font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 6px; }
+  .hint { color: #6b7280; font-size: 12px; background: #e9ebee; border-radius: 6px; padding: 5px 10px; }
+
+  .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 232px 1fr; gap: 10px; }
+
+  .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+  .settings { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .preview { display: flex; flex-direction: column; padding: 10px; min-height: 0; }
+
+  .label { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #6b7280; text-transform: uppercase; margin-bottom: 5px; }
+  .divider { height: 1px; background: #eef0f2; margin: 2px 0; }
+
+  .grad-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+  .swatch { aspect-ratio: 1/1; border-radius: 5px; border: 2px solid transparent; cursor: pointer; padding: 0; transition: transform .08s, border-color .1s; }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch.active { border-color: #00b8a0; box-shadow: 0 0 0 1px #00b8a0 inset; }
+
+  .bg-custom { background: #f7f8fa; border: 1px solid #eceef1; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .seg.sm { gap: 4px; }
+  .seg.sm button { padding: 4px 0; font-size: 12px; }
+  .color-row { display: flex; align-items: center; gap: 6px; }
+  .color-row input[type="color"] { flex: 1; min-width: 0; height: 28px; padding: 0; border: 1px solid #dfe2e6; border-radius: 5px; background: #fff; cursor: pointer; }
+  .color-row .angle { display: flex; align-items: center; gap: 4px; color: #6b7280; font-size: 11px; white-space: nowrap; }
+  .color-row .angle input[type="number"] { width: 50px; height: 28px; border: 1px solid #dfe2e6; border-radius: 5px; padding: 0 4px; font-size: 12px; }
+
+  .slider { margin-bottom: 6px; }
+  .slider .head { display: flex; justify-content: space-between; font-size: 12px; color: #4b5563; margin-bottom: 3px; }
+  .slider .head em { font-style: normal; color: #00b8a0; min-width: 42px; text-align: right; }
+  input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #e5e7eb; border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #00b8a0; border-radius: 50%; cursor: pointer; }
+
+  .seg { display: flex; gap: 4px; }
+  .seg button { flex: 1; padding: 5px 0; font-size: 12px; color: #6b7280; background: #f3f4f6; border: 1px solid #e2e4e8; border-radius: 6px; cursor: pointer; }
+  .seg button:hover { border-color: #00b8a0; color: #374151; }
+  .seg button.active { background: #00b8a0; border-color: #00b8a0; color: #fff; }
+
+  select { width: 100%; height: 30px; padding: 0 8px; font-size: 13px; color: #374151; background: #f3f4f6; border: 1px solid #e2e4e8; border-radius: 6px; outline: none; cursor: pointer; }
+
+  .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; background: #fafbfc; border: 1px dashed #e2e4e8; border-radius: 8px; padding: 10px; }
+  .stage.has-image { border-style: solid; background: #f5f6f8; }
+  #canvas-container { display: none; }
+  #preview-canvas { display: block; max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+  .loading { text-align: center; color: #9aa1a9; font-size: 13px; }
+
+  .msg { margin-top: 8px; padding: 7px 10px; border-radius: 6px; font-size: 12px; display: none; }
+  .msg.success { display: block; background: rgba(16,185,129,.1); border: 1px solid #10b981; color: #0f9d6f; }
+  .msg.error { display: block; background: rgba(239,68,68,.1); border: 1px solid #ef4444; color: #dc2626; }
+
+  .execute { margin-top: 8px; height: 40px; border: none; border-radius: 8px; background: #00b8a0; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity .1s; }
+  .execute:hover { opacity: .92; }
+  .execute:disabled { opacity: .6; cursor: default; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>🖼️ 截图美化</h1>
+    <div class="hint">调参 → 执行美化（写入剪贴板），到目标窗口 Ctrl+V 粘贴</div>
+  </div>
+
+  <div class="layout">
+    <div class="panel settings">
+      <div class="label">背景</div>
+      <div class="grad-grid" id="gradient-grid"></div>
+
+      <div class="bg-custom">
+        <div class="seg sm" id="mode-seg">
+          <button data-mode="gradient" class="active">自定义渐变</button>
+          <button data-mode="solid">纯色</button>
+        </div>
+        <div class="color-row" id="grad-row">
+          <input type="color" id="g1" value="#667eea" title="起始色 / 纯色" />
+          <input type="color" id="g2" value="#764ba2" title="结束色" />
+          <span class="angle">角度<input type="number" id="g-angle" min="0" max="360" step="1" value="135" /></span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="slider">
+        <div class="head"><span>边距</span><em id="padding-value">64px</em></div>
+        <input type="range" id="padding" min="0" max="180" value="64" />
+      </div>
+      <div class="slider">
+        <div class="head"><span>圆角</span><em id="radius-value">12px</em></div>
+        <input type="range" id="border-radius" min="0" max="48" value="12" />
+      </div>
+      <div class="slider">
+        <div class="head"><span>阴影</span><em id="shadow-value">30%</em></div>
+        <input type="range" id="shadow" min="0" max="100" value="30" />
+      </div>
+      <div class="slider">
+        <div class="head"><span>缩放</span><em id="scale-value">100%</em></div>
+        <input type="range" id="scale" min="50" max="150" value="100" />
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="label">宽高比</div>
+      <div class="seg" id="ratio-seg">
+        <button data-ratio="original" class="active">原始</button>
+        <button data-ratio="16:9">16:9</button>
+        <button data-ratio="4:3">4:3</button>
+        <button data-ratio="1:1">1:1</button>
+      </div>
+
+      <div class="label" style="margin-top:4px">输出格式</div>
+      <select id="output-format">
+        <option value="png">PNG</option>
+        <option value="jpeg">JPEG</option>
+        <option value="webp">WebP</option>
+      </select>
+    </div>
+
+    <div class="panel preview">
+      <div class="stage" id="stage">
+        <div class="loading" id="loading-hint">⏳ 正在读取截图...</div>
+        <div id="canvas-container"><canvas id="preview-canvas"></canvas></div>
+      </div>
+      <div id="message" class="msg"></div>
+      <button id="beautify-btn" class="execute">✨ 执行美化（写入剪贴板）</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS = [
+  [0, "#a18cd1", "#fbc2eb"], [45, "#ff9a9e", "#fad0c4"], [120, "#84fab0", "#8fd3f4"],
+  [120, "#fccb90", "#d57eeb"], [120, "#fdfbfb", "#ebedee"], [0, "#30cfd0", "#330867"],
+  [340, "#fc6076", "#ff9a44"], [135, "#2CD8D5", "#8E37D7"], [120, "#e0c3fc", "#8ec5fc"],
+  [135, "#667eea", "#764ba2"], [135, "#43e97b", "#38f9d7"], [135, "#ee9ca7", "#ffdde1"],
+  [120, "#f6d365", "#fda085"], [135, "#5ee7df", "#b490ca"], [120, "#c1dfc4", "#deecdd"],
+  [135, "#f093fb", "#f5576c"], [135, "#4facfe", "#00f2fe"], [135, "#fc466b", "#3f5efb"],
+  [120, "#fa709a", "#fee140"], [135, "#667eea", "#64b3f4"], [135, "#f83600", "#f9d423"],
+  [135, "#00c6ff", "#0072ff"], [135, "#e96443", "#904e95"], [135, "#0ba360", "#3cba92"],
+  [135, "#8e2de2", "#4a00e0"], [135, "#ff6a00", "#ee0979"], [135, "#12c2e9", "#c471ed"],
+  [135, "#0f2027", "#2c5364"], [135, "#c94b4b", "#4b134f"], [135, "#232526", "#414345"],
+];
+
+function gradStr(angle, a, b) {
+  return "linear-gradient(" + angle + "deg, " + a + " 0%, " + b + " 100%)";
+}
+
+const state = {
+  image: null,
+  gradient: gradStr(135, "#667eea", "#764ba2"),
+  bgColor: "#667eea",
+  padding: 64,
+  borderRadius: 12,
+  shadow: 30,
+  scale: 100,
+  format: "png",
+  aspectRatio: "original",
+};
+
+const stage = document.getElementById("stage");
+const previewCanvas = document.getElementById("preview-canvas");
+const canvasContainer = document.getElementById("canvas-container");
+const loadingHint = document.getElementById("loading-hint");
+const ctx = previewCanvas.getContext("2d");
+const messageEl = document.getElementById("message");
+const gridEl = document.getElementById("gradient-grid");
+const g1 = document.getElementById("g1");
+const g2 = document.getElementById("g2");
+const gAngle = document.getElementById("g-angle");
+const modeSeg = document.getElementById("mode-seg");
+let bgMode = "gradient";
+
+const paddingInput = document.getElementById("padding");
+const radiusInput = document.getElementById("border-radius");
+const shadowInput = document.getElementById("shadow");
+const scaleInput = document.getElementById("scale");
+const formatSelect = document.getElementById("output-format");
+
+const paddingValue = document.getElementById("padding-value");
+const radiusValue = document.getElementById("radius-value");
+const shadowValue = document.getElementById("shadow-value");
+const scaleValue = document.getElementById("scale-value");
+
+function roundRect(c, x, y, w, h, r) {
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+}
+
+function render() {
+  if (!state.image) return;
+  const img = state.image;
+  const scale = state.scale / 100;
+  const iw = img.width * scale;
+  const ih = img.height * scale;
+  const padding = state.padding;
+  const radius = state.borderRadius;
+  const shadowBlur = state.shadow;
+
+  const contentW = iw + padding * 2;
+  const contentH = ih + padding * 2;
+  let ox = 0, oy = 0;
+
+  if (state.aspectRatio !== "original") {
+    const r = { "16:9": 16 / 9, "4:3": 4 / 3, "1:1": 1 }[state.aspectRatio];
+    if (contentW / contentH > r) {
+      previewCanvas.width = contentW;
+      previewCanvas.height = contentW / r;
+      oy = (previewCanvas.height - contentH) / 2;
+    } else {
+      previewCanvas.height = contentH;
+      previewCanvas.width = contentH * r;
+      ox = (previewCanvas.width - contentW) / 2;
+    }
+  } else {
+    previewCanvas.width = contentW;
+    previewCanvas.height = contentH;
+  }
+
+  if (state.gradient) {
+    const m = state.gradient.match(/linear-gradient\((\d+)deg,\s*([#\w]+)\s*\d*%?,\s*([#\w]+)\s*\d*%?\)/);
+    if (m) {
+      const angle = (parseInt(m[1]) * Math.PI) / 180;
+      const x1 = previewCanvas.width / 2 - Math.cos(angle) * previewCanvas.width;
+      const y1 = previewCanvas.height / 2 - Math.sin(angle) * previewCanvas.height;
+      const x2 = previewCanvas.width / 2 + Math.cos(angle) * previewCanvas.width;
+      const y2 = previewCanvas.height / 2 + Math.sin(angle) * previewCanvas.height;
+      const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+      grad.addColorStop(0, m[2].trim());
+      grad.addColorStop(1, m[3].trim());
+      ctx.fillStyle = grad;
+    }
+  } else {
+    ctx.fillStyle = state.bgColor;
+  }
+  ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+  if (shadowBlur > 0) {
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.shadowBlur = shadowBlur;
+    ctx.shadowOffsetY = shadowBlur / 3;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    roundRect(ctx, padding + ox, padding + oy, iw, ih, radius);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, padding + ox, padding + oy, iw, ih, radius);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(img, padding + ox, padding + oy, iw, ih);
+  ctx.restore();
+}
+
+function setPresetActive(active) {
+  document.querySelectorAll(".swatch").forEach((b) => b.classList.toggle("active", b === active));
+}
+
+function setModeUI() {
+  document.querySelectorAll("#mode-seg button").forEach((b) => b.classList.toggle("active", b.dataset.mode === bgMode));
+  const grad = bgMode === "gradient";
+  g2.style.display = grad ? "" : "none";
+  gAngle.parentElement.style.display = grad ? "" : "none";
+}
+
+function applyBackground() {
+  if (bgMode === "solid") {
+    state.gradient = "";
+    state.bgColor = g1.value;
+  } else {
+    state.gradient = gradStr(parseInt(gAngle.value) || 0, g1.value, g2.value);
+  }
+  setPresetActive(null);
+  render();
+}
+
+function buildGrid() {
+  PRESETS.forEach(([angle, a, b]) => {
+    const btn = document.createElement("button");
+    btn.className = "swatch";
+    btn.style.background = "linear-gradient(" + angle + "deg," + a + "," + b + ")";
+    btn.title = a + " → " + b;
+    btn.addEventListener("click", () => {
+      bgMode = "gradient";
+      g1.value = a; g2.value = b; gAngle.value = angle;
+      state.gradient = gradStr(angle, a, b);
+      setModeUI();
+      setPresetActive(btn);
+      render();
+    });
+    gridEl.appendChild(btn);
+  });
+}
+
+function loadImage(blob) {
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    state.image = img;
+    loadingHint.style.display = "none";
+    canvasContainer.style.display = "block";
+    stage.classList.add("has-image");
+    URL.revokeObjectURL(url);
+    render();
+  };
+  img.onerror = () => showMessage("截图读取失败", "error");
+  img.src = url;
+}
+
+function showMessage(text, type) {
+  messageEl.textContent = text;
+  messageEl.className = "msg " + type;
+}
+
+function collectConfig() {
+  let angle = 135, color1 = "#667eea", color2 = "#764ba2", bgType = "solid";
+  if (state.gradient) {
+    const m = state.gradient.match(/linear-gradient\((\d+)deg,\s*#([\w]+).*?#([\w]+)/);
+    if (m) { angle = parseInt(m[1]); color1 = "#" + m[2]; color2 = "#" + m[3]; bgType = "gradient"; }
+  } else {
+    color1 = state.bgColor;
+  }
+  return {
+    bgType, bgAngle: angle, bgColor1: color1, bgColor2: color2,
+    padding: state.padding, borderRadius: state.borderRadius,
+    shadowStrength: state.shadow, scale: state.scale, format: state.format, aspectRatio: state.aspectRatio,
+  };
+}
+
+function applyConfig(config) {
+  state.padding = config.padding ?? 64;
+  state.borderRadius = config.borderRadius ?? 12;
+  state.shadow = config.shadowStrength ?? 30;
+  state.scale = config.scale ?? 100;
+  state.format = config.format ?? "png";
+  paddingInput.value = state.padding; paddingValue.textContent = state.padding + "px";
+  radiusInput.value = state.borderRadius; radiusValue.textContent = state.borderRadius + "px";
+  shadowInput.value = state.shadow; shadowValue.textContent = state.shadow + "%";
+  scaleInput.value = state.scale; scaleValue.textContent = state.scale + "%";
+  formatSelect.value = state.format;
+
+  state.aspectRatio = config.aspectRatio || "original";
+  document.querySelectorAll("#ratio-seg button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.ratio === state.aspectRatio);
+  });
+
+  if (config.bgType === "gradient" && config.bgColor1 && config.bgColor2) {
+    bgMode = "gradient";
+    const angle = config.bgAngle ?? 135;
+    g1.value = config.bgColor1; g2.value = config.bgColor2; gAngle.value = angle;
+    state.gradient = gradStr(angle, config.bgColor1, config.bgColor2);
+    const idx = PRESETS.findIndex(([a, x, y]) =>
+      a === angle &&
+      x.toLowerCase() === String(config.bgColor1).toLowerCase() &&
+      y.toLowerCase() === String(config.bgColor2).toLowerCase());
+    setModeUI();
+    setPresetActive(idx >= 0 ? gridEl.children[idx] : null);
+  } else {
+    bgMode = "solid";
+    state.gradient = "";
+    state.bgColor = config.bgColor1 || "#667eea";
+    g1.value = state.bgColor;
+    setModeUI();
+    setPresetActive(null);
+  }
+  if (state.image) render();
+}
+
+async function loadConfigFromServer() {
+  try {
+    const res = await fetch("/api/config");
+    const config = await res.json();
+    if (config && config.padding != null) applyConfig(config);
+  } catch {}
+}
+
+async function loadInitialSource() {
+  try {
+    const res = await fetch("/api/source");
+    if (!res.ok || res.status === 204) { showMessage("没有可美化的截图", "error"); return; }
+    const blob = await res.blob();
+    if (blob && blob.size > 0) loadImage(blob);
+  } catch {
+    showMessage("截图读取失败", "error");
+  }
+}
+
+function closeWindow() {
+  try {
+    if (window.webview && typeof window.webview.resolve === "function") {
+      window.webview.resolve({ ok: true });
+      return;
+    }
+  } catch {}
+  try { window.close(); } catch {}
+}
+
+async function executeBeautify() {
+  if (!state.image) { showMessage("还没有可美化的截图", "error"); return; }
+  const btn = document.getElementById("beautify-btn");
+  btn.disabled = true;
+  btn.textContent = "美化中...";
+  try {
+    const res = await fetch("/api/beautify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectConfig()),
+    });
+    const result = await res.json();
+    if (result.ok) {
+      showMessage("✓ 已美化并写入剪贴板，正在关闭窗口...", "success");
+      setTimeout(closeWindow, 900);
+    } else {
+      showMessage("美化失败: " + (result.error || ""), "error");
+      btn.disabled = false; btn.textContent = "✨ 执行美化（写入剪贴板）";
+    }
+  } catch (err) {
+    showMessage("美化失败: " + err.message, "error");
+    btn.disabled = false; btn.textContent = "✨ 执行美化（写入剪贴板）";
+  }
+}
+
+paddingInput.addEventListener("input", (e) => { state.padding = parseInt(e.target.value); paddingValue.textContent = state.padding + "px"; render(); });
+radiusInput.addEventListener("input", (e) => { state.borderRadius = parseInt(e.target.value); radiusValue.textContent = state.borderRadius + "px"; render(); });
+shadowInput.addEventListener("input", (e) => { state.shadow = parseInt(e.target.value); shadowValue.textContent = state.shadow + "%"; render(); });
+scaleInput.addEventListener("input", (e) => { state.scale = parseInt(e.target.value); scaleValue.textContent = state.scale + "%"; render(); });
+formatSelect.addEventListener("change", (e) => { state.format = e.target.value; });
+
+document.querySelectorAll("#ratio-seg button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#ratio-seg button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.aspectRatio = btn.dataset.ratio;
+    render();
+  });
+});
+
+[g1, g2, gAngle].forEach((el) => el.addEventListener("input", applyBackground));
+modeSeg.querySelectorAll("button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    bgMode = btn.dataset.mode;
+    setModeUI();
+    applyBackground();
+  });
+});
+
+document.getElementById("beautify-btn").addEventListener("click", executeBeautify);
+
+buildGrid();
+setModeUI();
+loadConfigFromServer();
+loadInitialSource();
+</script>
+</body>
+</html>

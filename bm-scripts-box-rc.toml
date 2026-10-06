@@ -1,0 +1,23 @@
+[bmscriptsbox]
+
+[bmscriptsbox.info]
+id = "e8a3f5c1-7b2d-4f9a-8c6e-1d5a3b7c9f0e"
+name = "截图美化"
+desc = "截图美化工具 | 一键截图后弹出原生窗口调参、渐变背景+圆角+阴影+宽高比+缩放、输出 PNG/JPEG/WebP 并写回剪贴板 | 支持卡片/右键/快捷键任意方式触发"
+version = "1.4.1"
+icon = "./imgs/logo.png"
+
+[bmscriptsbox.runtime]
+language = "node.js"
+language_version = ">=v16.0"
+entry = "main.js"
+terminal = "never"
+binaries = [{name = "ScreenCapture"}, {name = "webview-cli"}]
+
+[bmscriptsbox.triggers.context_menu]
+enabled = true
+targets = ["background"]
+
+[bmscriptsbox.triggers.shortcut]
+enabled = true
+input_type = ""
